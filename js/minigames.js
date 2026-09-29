@@ -167,85 +167,113 @@ window.TK = window.TK || {};
   };
 
   /* =====================================================================
-     2) כבל רשת: סדר החוטים לפי תקן T568B
+     2) בונים רשת: מניחים מכשירים, מחברים כבלים, בודקים ping (כמו Packet Tracer)
      ===================================================================== */
-  MG.cable = (api) => {
+  MG.network = (api) => {
     const acc = '#ffb347';
-    const COL = [
-      { c: '#ff9a1f', s: true, n: 'כתום-לבן' }, { c: '#ff9a1f', n: 'כתום' }, { c: '#22b84a', s: true, n: 'ירוק-לבן' }, { c: '#1e6bff', n: 'כחול' },
-      { c: '#1e6bff', s: true, n: 'כחול-לבן' }, { c: '#22b84a', n: 'ירוק' }, { c: '#8b5a2b', s: true, n: 'חום-לבן' }, { c: '#8b5a2b', n: 'חום' }
-    ];
-    const SX = 304, SW = 84, SY = 300;
-    const order = TK.shuffle([0, 1, 2, 3, 4, 5, 6, 7]);
-    const wires = order.map((idx, j) => ({ idx, hx: SX + j * SW + 38, hy: 505, x: SX + j * SW + 38, y: 505, placed: false }));
-    let drag = null, errors = 0, t = 0, stage = 'play', testT = 0, doneT = 0, msg = '', msgT = 0;
-
-    function wireDraw(ctx, w, x, y, dim) {
-      const d = COL[w.idx]; ctx.save(); ctx.translate(x, y);
-      ctx.shadowColor = d.c; ctx.shadowBlur = drag === w ? 18 : 6;
-      ctx.beginPath(); rr(ctx, -14, 0, 28, 128, 13); ctx.fillStyle = d.s ? '#f4f6ff' : d.c; ctx.fill(); ctx.shadowBlur = 0;
-      if (d.s) { ctx.save(); ctx.clip(); ctx.fillStyle = d.c; for (let yy = -20; yy < 150; yy += 22) { ctx.beginPath(); ctx.moveTo(-16, yy); ctx.lineTo(16, yy - 12); ctx.lineTo(16, yy + 2); ctx.lineTo(-16, yy + 14); ctx.fill(); } ctx.restore(); }
-      ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; rr(ctx, -14, 0, 28, 128, 13); ctx.stroke();
-      ctx.fillStyle = '#d9a441'; ctx.fillRect(-9, -8, 18, 12);
+    const SL = {
+      R: { x: 700, y: 245, t: 'router', l: 'נתב' }, S: { x: 700, y: 375, t: 'switch', l: 'מתג' }, V: { x: 960, y: 375, t: 'server', l: 'שרת' },
+      P1: { x: 480, y: 515, t: 'pc', l: 'מחשב 1' }, P2: { x: 700, y: 515, t: 'pc', l: 'מחשב 2' }, P3: { x: 920, y: 515, t: 'pc', l: 'מחשב 3' }
+    };
+    const LINKS = [['R', 'S'], ['S', 'V'], ['S', 'P1'], ['S', 'P2'], ['S', 'P3']];
+    const tray = [['router', 'נתב'], ['switch', 'מתג'], ['server', 'שרת'], ['pc', 'מחשב'], ['pc', 'מחשב'], ['pc', 'מחשב']].map((d, i) => ({ type: d[0], l: d[1], hx: 160, hy: 190 + i * 68, x: 160, y: 190 + i * 68, slot: null }));
+    let stage = 'place', drag = null, errors = 0, t = 0, made = [], sel = null, msg = '', msgT = 0, pingT = 0, doneT = 0;
+    const say = (m) => { msg = m; msgT = 4; };
+    const filled = (k) => tray.find((d) => d.slot === k);
+    function icon(ctx, type, x, y, col, s) {
+      s = s || 1; ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+      if (type === 'router') { ctx.beginPath(); ctx.arc(0, 4, 16, 0, 6.283); ctx.stroke(); for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.78; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 16, 4 + Math.sin(a) * 16); ctx.lineTo(Math.cos(a) * 25, 4 + Math.sin(a) * 25); ctx.stroke(); } }
+      else if (type === 'switch') { rr(ctx, -26, -8, 52, 26, 5); ctx.stroke(); for (let i = 0; i < 5; i++) ctx.fillRect(-19 + i * 9, 1, 5, 9); }
+      else if (type === 'server') { for (let i = 0; i < 3; i++) { rr(ctx, -20, -20 + i * 15, 40, 12, 3); ctx.stroke(); ctx.fillRect(10, -16 + i * 15, 4, 4); } }
+      else { rr(ctx, -22, -18, 44, 30, 4); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-10, 20); ctx.lineTo(10, 20); ctx.moveTo(0, 12); ctx.lineTo(0, 20); ctx.stroke(); }
       ctx.restore();
     }
+    function chip(ctx, d, x, y, col, s) {
+      ctx.save(); ctx.fillStyle = rgba(col, 0.16); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.shadowColor = col; ctx.shadowBlur = d === drag ? 20 : 8;
+      rr(ctx, x - 44 * (s || 1), y - 30 * (s || 1), 88 * (s || 1), 60 * (s || 1), 14); ctx.fill(); ctx.stroke(); ctx.restore();
+      icon(ctx, d.type, x, y - 3, '#fff', s);
+    }
     return {
-      title: 'כבל הרשת', acc,
-      state: () => ({ stage, wires: wires.map((w) => ({ idx: w.idx, x: w.x, y: w.y, placed: w.placed })), SX, SW, SY }),
-      how: ['כבל רשת (Ethernet) מכיל 8 חוטים צבעוניים.', 'סדר החיבור נקבע בתקן בינלאומי (T568B). טעות בחוט אחד והחיבור נשבר.', 'גרור/י כל חוט אל החריץ הנכון, לפי טבלת התקן שלמעלה.'],
-      hint() { return 'התחל/י מחריץ 1: כתום עם פסים לבנים. עקוב/י אחרי הטבלה למעלה, חריץ אחרי חריץ.'; },
+      title: 'בונים רשת', acc,
+      state: () => ({ stage, tray: tray.map((d) => ({ type: d.type, x: d.x, y: d.y, slot: d.slot })), SL, made }),
+      how: ['בתחנה יש מחשבים, אבל הם לא מחוברים זה לזה.', 'גרור/י כל מכשיר למקום שלו במפה: הנתב מחבר לעולם, המתג מחבר בין המחשבים, והשרת נותן שירותים.', 'אחר כך חבר/י ביניהם בכבלים ובדוק/י שהרשת עובדת. כך בונים רשת אמיתית!'],
+      hint() { return stage === 'place' ? 'הנתב למעלה (מחבר לאינטרנט), המתג באמצע, והמחשבים והשרת מתחברים אליו.' : 'כל מכשיר מתחבר למתג: לחץ/י על המתג ואז על מכשיר, כדי למתוח כבל ביניהם.'; },
       update(dt) {
         t += dt; msgT = Math.max(0, msgT - dt);
-        if (stage === 'test') { testT += dt; if (testT > 2.6) { stage = 'done'; TK.audio.sfx.win(); api.fx.burst(W / 2, SY + 60, '#39ff88', 50, 300); } }
-        if (stage === 'done') { doneT += dt; if (doneT > 1.6) { stage = 'over'; api.finish(stars(errors, 1, 4)); } }
+        if (stage === 'ping') { pingT += dt * 0.5; if (pingT >= 1) { stage = 'done'; TK.audio.sfx.win(); api.fx.burst(SL.V.x, SL.V.y, '#39ff88', 40, 300); } }
+        if (stage === 'done') { doneT += dt; if (doneT > 2.4) { stage = 'over'; api.finish(stars(errors, 1, 4)); } }
       },
       draw(ctx) {
-        frame(ctx, this.title, acc, stage === 'test' || stage === 'done' ? 'בודק את החיבור...' : 'חבר/י את החוטים לפי התקן');
-        // טבלת תקן
-        txt(ctx, 'תקן T568B, סדר החוטים:', W - 110, 130, { size: 16, weight: 700, color: '#ffce8a', align: 'right' });
-        COL.forEach((d, i) => {
-          const x = SX + i * SW + 38;
-          ctx.save(); ctx.translate(x, 150); rr(ctx, -13, 0, 26, 36, 6); ctx.fillStyle = d.s ? '#f4f6ff' : d.c; ctx.fill();
-          if (d.s) { ctx.save(); ctx.clip(); ctx.fillStyle = d.c; for (let yy = -8; yy < 44; yy += 10) { ctx.beginPath(); ctx.moveTo(-14, yy); ctx.lineTo(14, yy - 6); ctx.lineTo(14, yy); ctx.lineTo(-14, yy + 6); ctx.fill(); } ctx.restore(); }
-          ctx.restore();
-          txt(ctx, (i + 1) + '', x, 204, { size: 15, weight: 800, color: '#ffce8a' });
+        frame(ctx, this.title, acc, stage === 'place' ? 'שלב 1: הצב/י את המכשירים' : stage === 'connect' ? 'שלב 2: חבר/י בכבלים' : 'שלב 3: בדיקת חיבור');
+        // מסלול לאינטרנט
+        ctx.strokeStyle = '#3a4a7a'; ctx.lineWidth = 3; ctx.setLineDash([8, 8]); ctx.beginPath(); ctx.moveTo(SL.R.x, SL.R.y - 40); ctx.lineTo(SL.R.x, 160); ctx.stroke(); ctx.setLineDash([]);
+        txt(ctx, 'לאינטרנט', SL.R.x, 150, { size: 16, color: '#7f8db8', weight: 700 });
+        // כבלים
+        made.forEach((k) => { const a = SL[k[0]], b = SL[k[1]]; ctx.save(); ctx.strokeStyle = '#39ff88'; ctx.lineWidth = 5; ctx.shadowColor = '#39ff88'; ctx.shadowBlur = 12; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.restore(); });
+        // חריצים
+        Object.keys(SL).forEach((k) => {
+          const s = SL[k], d = filled(k);
+          if (!d) { ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2.5; ctx.setLineDash([7, 7]); rr(ctx, s.x - 48, s.y - 34, 96, 68, 14); ctx.stroke(); ctx.restore(); icon(ctx, s.t, s.x, s.y - 3, 'rgba(255,255,255,.25)', 0.9); }
+          else { const on = sel === k, col = on ? '#ffffff' : (stage === 'place' ? '#39ff88' : acc); chip(ctx, d, s.x, s.y, col, 1); }
+          txt(ctx, s.l, s.x, s.y + 50, { size: 16, weight: 700, color: d ? '#cfe0ff' : '#7f8db8' });
         });
-        // מחבר
-        ctx.save(); ctx.fillStyle = '#c9d3ee'; rr(ctx, SX - 22, SY - 30, SW * 8 + 44, 200, 18); ctx.fill();
-        ctx.fillStyle = '#0d1226'; rr(ctx, SX - 8, SY - 14, SW * 8 + 16, 170, 10); ctx.fill(); ctx.restore();
-        COL.forEach((d, i) => {
-          const x = SX + i * SW;
-          ctx.fillStyle = 'rgba(255,255,255,.07)'; rr(ctx, x + 5, SY, SW - 10, 150, 8); ctx.fill();
-          ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 2; ctx.stroke();
-          txt(ctx, (i + 1) + '', x + SW / 2, SY + 176, { size: 17, weight: 700, color: '#7f8db8' });
-        });
-        wires.forEach((w) => { if (w.placed) wireDraw(ctx, w, w.x, SY + 10); });
-        wires.forEach((w) => { if (!w.placed && w !== drag) wireDraw(ctx, w, w.x, w.y - (Math.sin(t * 2 + w.idx) * 2)); });
-        if (drag) wireDraw(ctx, drag, drag.x, drag.y);
-        if (stage === 'play' || stage === 'test' || stage === 'done') {
-          // בודק LED
-          const lit = stage === 'test' ? Math.min(8, Math.floor(testT / 0.3)) : stage === 'done' ? 8 : 0;
-          for (let i = 0; i < 8; i++) { ctx.fillStyle = i < lit ? '#39ff88' : '#1d2440'; ctx.shadowColor = '#39ff88'; ctx.shadowBlur = i < lit ? 14 : 0; ctx.beginPath(); ctx.arc(SX + i * SW + 38, SY - 60, 9, 0, 6.283); ctx.fill(); ctx.shadowBlur = 0; }
+        // מגש
+        if (stage === 'place') {
+          ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.05)'; rr(ctx, 100, 145, 120, 445, 16); ctx.fill(); ctx.restore();
+          txt(ctx, 'מכשירים', 160, 165, { size: 16, weight: 700, color: '#ffce8a' });
+          tray.forEach((d) => { if (d.slot === null && d !== drag) chip(ctx, d, d.x, d.y, acc, 0.9); txt(ctx, d.l, d.hx, d.hy + 38, { size: 13, color: '#9fb0d8' }); });
+          if (drag) chip(ctx, drag, drag.x, drag.y, '#ffffff', 1);
         }
-        if (stage === 'done') txt(ctx, 'הכבל תקין! כל 8 החוטים מחוברים', W / 2, 250, { size: 28, weight: 800, color: '#39ff88', glow: '#39ff88' });
-        if (msgT > 0) txt(ctx, msg, W / 2, 470, { size: 20, weight: 700, color: '#ff9fb0', alpha: Math.min(1, msgT) });
+        // ping
+        if (stage === 'ping' || stage === 'done') {
+          const path = ['P1', 'S', 'V'], pts = path.map((k) => SL[k]);
+          const u = Math.min(1, pingT) * 2, i = Math.min(1, Math.floor(u)), k = u - i, a = pts[i], b = pts[i + 1] || pts[i];
+          const x = a.x + (b.x - a.x) * k, y = a.y + (b.y - a.y) * k;
+          ctx.save(); ctx.fillStyle = '#fff'; ctx.shadowColor = '#39ff88'; ctx.shadowBlur = 20; rr(ctx, x - 14, y - 10, 28, 20, 5); ctx.fill(); ctx.restore();
+          ctx.save(); ctx.fillStyle = 'rgba(4,8,22,.92)'; rr(ctx, 260, 132, 340, 78, 12); ctx.fill(); ctx.strokeStyle = '#39ff88'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+          txt(ctx, '> ping server', 280, 152, { size: 17, color: '#7dffb0', align: 'left', dir: 'ltr', weight: 600 });
+          if (stage === 'done') txt(ctx, 'Reply from server: time<1ms  OK', 280, 182, { size: 17, color: '#39ff88', align: 'left', dir: 'ltr', weight: 700 });
+          else txt(ctx, 'Sending...', 280, 182, { size: 17, color: '#ffe07a', align: 'left', dir: 'ltr' });
+        }
+        if (stage === 'connect') {
+          txt(ctx, 'חיבורים: ' + made.length + ' מתוך ' + LINKS.length, 200, 190, { size: 20, weight: 800, color: '#ffce8a' });
+          TK.para(ctx, 'לחץ/י על מכשיר ואז על מכשיר אחר כדי לחבר ביניהם בכבל', 200, 225, 220, { size: 16, color: '#9fb0d8', weight: 500, lh: 23 });
+        }
+        if (stage === 'test') UI.button(ctx, 'ping', 130, 200, 200, 66, 'שלח ping', { color: '#39ff88', size: 24 });
+        if (stage === 'done') txt(ctx, 'הרשת עובדת! כך נראית רשת של משרד או של בית ספר', W / 2, 615, { size: 24, weight: 800, color: '#39ff88', glow: '#39ff88' });
+        if (msgT > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, msgT); rr(ctx, W / 2 - 380, 588, 760, 42, 12); ctx.fillStyle = 'rgba(255,77,109,.18)'; ctx.fill(); ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 2; ctx.stroke(); txt(ctx, msg, W / 2, 610, { size: 18, color: '#ffd3da', weight: 700 }); ctx.restore(); }
       },
+      onBtn(id) { if (id === 'ping') { stage = 'ping'; pingT = 0; TK.audio.sfx.whoosh(); } },
       down(x, y) {
-        if (stage !== 'play') return;
-        for (let i = wires.length - 1; i >= 0; i--) { const w = wires[i]; if (!w.placed && Math.abs(x - w.x) < 22 && y > w.y - 12 && y < w.y + 132) { drag = w; drag.ox = x - w.x; drag.oy = y - w.y; TK.audio.sfx.click(); return; } }
+        if (stage === 'place') {
+          for (let i = tray.length - 1; i >= 0; i--) { const d = tray[i]; if (d.slot === null && Math.abs(x - d.x) < 46 && Math.abs(y - d.y) < 32) { drag = d; d.ox = x - d.x; d.oy = y - d.y; TK.audio.sfx.click(); return; } }
+        } else if (stage === 'connect') {
+          for (const k in SL) {
+            const s = SL[k]; if (Math.abs(x - s.x) < 50 && Math.abs(y - s.y) < 36) {
+              TK.audio.sfx.click();
+              if (!sel) { sel = k; return; }
+              if (sel === k) { sel = null; return; }
+              const key = LINKS.find((l) => (l[0] === sel && l[1] === k) || (l[1] === sel && l[0] === k));
+              if (!key) { errors++; TK.audio.sfx.bad(); say(SL[sel].t === 'pc' && s.t === 'pc' ? 'מחשבים לא מתחברים ישירות זה לזה: כולם מתחברים דרך המתג.' : 'אין צורך בחיבור הזה. כל המכשירים מתחברים למתג, והמתג לנתב.'); sel = null; return; }
+              if (made.includes(key)) { sel = null; return; }
+              made.push(key); sel = null; TK.audio.sfx.ok(); api.fx.burst((SL[key[0]].x + SL[key[1]].x) / 2, (SL[key[0]].y + SL[key[1]].y) / 2, '#39ff88', 14, 160);
+              if (made.length === LINKS.length) { stage = 'test'; api.bit('כל הכבלים במקום! עכשיו נבדוק שהרשת באמת עובדת.', 4000); }
+              return;
+            }
+          }
+        }
       },
       move(x, y) { if (drag) { drag.x = x - drag.ox; drag.y = y - drag.oy; } },
-      up(x, y) {
+      up() {
         if (!drag) return;
-        const w = drag; drag = null;
-        const slot = Math.floor((w.x - SX + 0) / SW);
-        if (w.y < SY + 90 && slot >= 0 && slot < 8 && !wires.some((o) => o.placed && o.slotIdx === slot)) {
-          if (slot === w.idx) { w.placed = true; w.slotIdx = slot; w.x = SX + slot * SW + SW / 2; TK.audio.sfx.ok(); api.fx.burst(w.x, SY + 40, COL[w.idx].c, 12, 140); if (wires.every((o) => o.placed)) { stage = 'test'; testT = 0; api.bit('כל החוטים במקום! בוא נריץ בדיקת חיבור.', 3500); } return; }
-          errors++; TK.audio.sfx.bad(); msg = 'חריץ ' + (slot + 1) + ' דורש חוט אחר. בדוק/י בטבלה שלמעלה.'; msgT = 3;
-        }
-        w.x = w.hx; w.y = w.hy;
+        const d = drag; drag = null;
+        let best = null, bd = 80;
+        for (const k in SL) { const s = SL[k]; const dd = Math.hypot(d.x - s.x, d.y - s.y); if (dd < bd && !filled(k)) { bd = dd; best = k; } }
+        if (best && SL[best].t === d.type) { d.slot = best; TK.audio.sfx.ok(); api.fx.burst(SL[best].x, SL[best].y, '#39ff88', 12, 140); if (tray.every((q) => q.slot)) { stage = 'connect'; api.bit('כל המכשירים במקום! עכשיו נחבר ביניהם בכבלים.', 4000); } return; }
+        if (best) { errors++; TK.audio.sfx.bad(); say('זה לא המקום של ' + d.l + '. ' + (d.type === 'switch' ? 'המתג הוא הלב של הרשת: כולם מתחברים אליו.' : d.type === 'router' ? 'הנתב מחבר את הרשת לאינטרנט, לכן הוא למעלה.' : d.type === 'server' ? 'השרת מתחבר למתג, בצד.' : 'מחשבים מחוברים למתג, בשורה התחתונה.')); }
+        d.x = d.hx; d.y = d.hy;
       },
-      onBtn() { }, destroy() { }
+      destroy() { }
     };
   };
 
@@ -324,7 +352,7 @@ window.TK = window.TK || {};
           fb = { ok }; ok ? TK.audio.sfx.ok() : TK.audio.sfx.bad();
         } else if (id === 'next') {
           fb = null; i++;
-          if (i >= deck.length) { if (wrong <= 1) startPw(); else stage = 'retry'; }
+          if (i >= deck.length) startPw();
         } else if (id === 'again') { deck = TK.shuffle(TK.CONTENT.phishing); i = 0; wrong = 0; stage = 'cards'; }
         else if (id === 'suggest') { input.value = TK.shuffle(words).slice(0, 3).join('-') + '-' + (10 + Math.floor(Math.random() * 89)) + '!'; TK.audio.sfx.pop(); }
         else if (id === 'ok' && pwOk()) { stage = 'done'; doneT = 0; TK.audio.sfx.win(); api.fx.burst(W / 2, 420, '#39ff88', 50, 300); input.blur(); }
@@ -339,7 +367,7 @@ window.TK = window.TK || {};
      ===================================================================== */
   MG.firewall = (api) => {
     const acc = '#39ff88';
-    const LY = [245, 335, 425, 515], SXp = 1040, WALL = 880, DUR = 30;
+    const LY = [245, 335, 425, 515], SXp = 1040, WALL = 880, DUR = 25;
     const BAD = ['virus.exe', 'ransom.lock', 'trojan.zip', 'phish.link', 'botnet.bin'], GOOD = ['patient.dat', 'xray.png', 'lab.pdf', 'appt.csv', 'meds.db'];
     let pk = [], time = 0, spawn = 0.5, health = 100, blocked = 0, missed = 0, wrongTap = 0, delivered = 0, t = 0, stage = 'play', endT = 0, fails = 0, flash = 0, popups = [];
     const reset = () => { pk = []; time = 0; spawn = 0.5; health = 100; blocked = 0; missed = 0; wrongTap = 0; delivered = 0; };
@@ -347,7 +375,7 @@ window.TK = window.TK || {};
     return {
       title: 'חומת האש', acc,
       state: () => ({ stage, pk: pk.map((p) => ({ x: p.x, y: LY[p.lane], bad: p.bad })), health, time }),
-      how: ['בית החולים תחת מתקפה! חבילות מידע זורמות אל השרת.', 'לחץ/י על חבילות אדומות (זדוניות) כדי לחסום אותן.', 'אל תחסום/י חבילות ירוקות: הן נתוני חולים אמיתיים! שרוד/י 30 שניות.'],
+      how: ['בית החולים תחת מתקפה! חבילות מידע זורמות אל השרת.', 'לחץ/י על חבילות אדומות (זדוניות) כדי לחסום אותן.', 'אל תחסום/י חבילות ירוקות: הן נתוני חולים אמיתיים! שרוד/י 25 שניות.'],
       hint() { return 'אדום = מסוכן, ללחוץ עליו. ירוק = תקין, לא לגעת. אל תחכה, חסום מוקדם!'; },
       update(dt) {
         t += dt; flash = Math.max(0, flash - dt * 3);
@@ -539,51 +567,42 @@ window.TK = window.TK || {};
   };
 
   /* =====================================================================
-     6) ליבת העיר: חיבור בעיות לפתרונות + טעינה
+     6) ליבת העיר: שאלון "מה מתאים לך" + טעינת הליבה
      ===================================================================== */
-  MG.core = (api) => {
+  MG.quiz = (api) => {
     const acc = '#22e5ff';
-    const pairs = [
-      ['ההודעה לא מוצאת את הדרך אל החבר', 'נתב וכתובת IP'], ['הרכבות מנותקות זו מזו', 'כבלי רשת ותשתית'],
-      ['מישהו מתחזה לבנק כדי לגנוב סיסמה', 'אבטחת מידע וסיסמה חזקה'], ['וירוסים מנסים לחדור למערכת בית החולים', 'חומת אש וגיבוי'],
-      ['צריך לזהות אלפי תקיפות בכל שנייה', 'בינה מלאכותית (AI)']
-    ];
-    const tiles = pairs.map((p, i) => ({ i, text: p[1], done: false }));
-    const probs = TK.shuffle(pairs.map((p, i) => ({ i, text: p[0], done: false })));
-    let selT = null, errors = 0, stage = 'match', prog = 0, holding = false, t = 0, msg = '', msgT = 0, doneT = 0, links = [];
-    const ty = (k) => 190 + k * 84;
+    const Q = TK.CONTENT.quiz, PR = TK.CONTENT.profiles;
+    const score = { net: 0, cyber: 0, ai: 0 }, keys = ['net', 'cyber', 'ai'];
+    let stage = 'q', qi = 0, prog = 0, holding = false, t = 0, doneT = 0, prof = null;
     return {
-      title: 'הפעלת ליבת העיר', acc,
-      state: () => ({ stage, probs: probs.map((p) => p.i), tiles: tiles.map((t) => t.i) }),
-      how: ['כל הידע שצברת נפגש כאן.', 'התאם/י כל בעיה בעיר לתחום התקשוב שפותר אותה: לחץ/י על תחום ואז על הבעיה.', 'בסוף, החזק/י לחוץ כדי לטעון את הליבה.'],
-      hint() { return 'חשוב/י על האזורים שעברת: כיכר, תחנה, קניון, בית חולים, מעבדת AI.'; },
+      title: 'מה מתאים לך?', acc,
+      state: () => ({ stage, qi }),
+      how: ['הליבה של העיר מחכה לך, אבל קודם כמה שאלות קצרות.', 'אין תשובות נכונות או שגויות: פשוט תבחר/י מה הכי דומה לך.', 'בסוף נגלה איזה תחנה בעולם התקשוב הכי מתאימה לך, ונטען את הליבה.'],
+      hint() { return 'אין תשובה נכונה. בחר/י את מה שהכי מושך אותך.'; },
       update(dt) {
-        t += dt; msgT = Math.max(0, msgT - dt);
+        t += dt;
         if (stage === 'charge') {
-          if (holding) prog = Math.min(1, prog + dt * 0.4); else prog = Math.max(0, prog - dt * 0.5);
+          if (holding) prog = Math.min(1, prog + dt * 0.5); else prog = Math.max(0, prog - dt * 0.5);
           TK.audio.sfx.chargeSet(prog);
           if (prog >= 1) { stage = 'done'; holding = false; TK.audio.sfx.chargeStop(); TK.audio.sfx.power(); api.fx.burst(W / 2, 430, '#22e5ff', 90, 460); api.fx.ring(W / 2, 430, '#ffffff', 500, 1.6, 8); }
         }
-        if (stage === 'done') { doneT += dt; if (doneT > 1.8) { stage = 'over'; api.finish(stars(errors, 0, 2)); } }
+        if (stage === 'done') { doneT += dt; if (doneT > 1.8) { stage = 'over'; api.finish(3); } }
       },
       draw(ctx) {
-        frame(ctx, this.title, acc, stage === 'match' ? 'התאם/י כל בעיה לפתרון שלה' : 'טעינת הליבה');
-        if (stage === 'match') {
-          tiles.forEach((tl, k) => {
-            const y = ty(k), on = selT === tl;
-            ctx.save(); ctx.fillStyle = tl.done ? 'rgba(57,255,136,.18)' : rgba(acc, on ? 0.35 : 0.14); rr(ctx, 130, y, 380, 64, 14); ctx.fill(); ctx.strokeStyle = tl.done ? '#39ff88' : acc; ctx.lineWidth = on ? 4 : 2.5; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = on ? 16 : 6; ctx.stroke(); ctx.restore();
-            txt(ctx, tl.text, 320, y + 33, { size: 21, weight: 700, color: '#fff' });
-          });
-          probs.forEach((p, k) => {
-            const y = ty(k);
-            ctx.save(); ctx.fillStyle = p.done ? 'rgba(57,255,136,.18)' : 'rgba(255,77,109,.12)'; rr(ctx, 730, y, 420, 64, 14); ctx.fill(); ctx.strokeStyle = p.done ? '#39ff88' : '#ff8fa3'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
-            TK.para(ctx, p.text, 940, y + 27, 390, { size: 18, weight: 600, color: '#fff', lh: 22 });
-            UI.btns.push({ id: 'p' + k, x: 730, y, w: 420, h: 64 });
-          });
-          tiles.forEach((tl, k) => UI.btns.push({ id: 't' + k, x: 130, y: ty(k), w: 380, h: 64 }));
-          links.forEach((l) => { ctx.strokeStyle = '#39ff88'; ctx.lineWidth = 4; ctx.shadowColor = '#39ff88'; ctx.shadowBlur = 12; ctx.beginPath(); ctx.moveTo(510, ty(l.a) + 32); ctx.bezierCurveTo(620, ty(l.a) + 32, 620, ty(l.b) + 32, 730, ty(l.b) + 32); ctx.stroke(); ctx.shadowBlur = 0; });
-          if (msgT > 0) txt(ctx, msg, W / 2, 625, { size: 20, weight: 700, color: '#ff9fb0', alpha: Math.min(1, msgT) });
+        if (stage === 'q') {
+          frame(ctx, this.title, acc, 'שאלה ' + (qi + 1) + ' מתוך ' + Q.length);
+          TK.para(ctx, Q[qi].q, W / 2, 200, 800, { size: 34, weight: 800, color: '#fff', lh: 44 });
+          Q[qi].a.forEach((a, i) => UI.button(ctx, 'a' + i, W / 2 - 400, 280 + i * 100, 800, 78, a, { color: ['#22e5ff', '#ff6bd6', '#a78bfa'][i], size: 24 }));
+        } else if (stage === 'result') {
+          frame(ctx, this.title, acc, 'התוצאה שלך');
+          ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.06)'; rr(ctx, 220, 130, 840, 420, 22); ctx.fill(); ctx.restore();
+          txt(ctx, prof.icon, W / 2, 205, { size: 70 });
+          txt(ctx, prof.title, W / 2, 285, { size: 44, weight: 900, color: '#ffe07a', glow: '#ffc933' });
+          TK.para(ctx, prof.text, W / 2, 350, 720, { size: 24, weight: 500, color: '#eaf0ff', lh: 34 });
+          TK.para(ctx, 'הסוד: כל שלושת התחומים בנויים על אותם יסודות של רשתות ותקשורת, וזה מה שלומדים בתקשוב.', W / 2, 470, 720, { size: 19, weight: 600, color: '#7cf5c8', lh: 27 });
+          UI.button(ctx, 'go', W / 2 - 170, 575, 340, 64, 'טוענים את הליבה', { color: '#39ff88', size: 24 });
         } else {
+          frame(ctx, this.title, acc, 'טעינת הליבה');
           const cx = W / 2, cy = 400, R = 110;
           ctx.save();
           const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, R + 60 * prog); g.addColorStop(0, rgba('#ffffff', 0.4 + 0.6 * prog)); g.addColorStop(0.5, rgba(acc, 0.3 + 0.4 * prog)); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -596,16 +615,10 @@ window.TK = window.TK || {};
         }
       },
       onBtn(id) {
-        if (stage !== 'match') return;
-        if (id[0] === 't') { const tl = tiles[+id.slice(1)]; if (!tl.done) { selT = tl; TK.audio.sfx.click(); } }
-        else if (id[0] === 'p') {
-          const k = +id.slice(1), p = probs[k]; if (p.done) return;
-          if (!selT) { msg = 'בחר/י קודם תחום מהצד השמאלי.'; msgT = 2.5; return; }
-          if (selT.i === p.i) {
-            selT.done = true; p.done = true; links.push({ a: selT.i, b: k }); selT = null; TK.audio.sfx.ok(); api.fx.burst(940, ty(k) + 32, '#39ff88', 20, 200);
-            if (tiles.every((x) => x.done)) { stage = 'charge'; prog = 0; TK.audio.sfx.chargeStart(); api.bit('כולם מחוברים! עכשיו נטען את הליבה.', 3500); }
-          } else { errors++; TK.audio.sfx.bad(); msg = 'זה לא מתאים, חשוב/י שוב.'; msgT = 2.5; selT = null; }
-        }
+        if (stage === 'q' && id[0] === 'a') {
+          score[keys[+id.slice(1)]]++; TK.audio.sfx.pop(); qi++;
+          if (qi >= Q.length) { let best = 'net'; keys.forEach((k) => { if (score[k] > score[best]) best = k; }); prof = PR[best]; TK.profile = best; stage = 'result'; TK.audio.sfx.collect(); api.fx.burst(W / 2, 250, '#ffe07a', 50, 300); }
+        } else if (id === 'go') { stage = 'charge'; prog = 0; TK.audio.sfx.chargeStart(); }
       },
       down(x, y) { if (stage === 'charge' && dist(x, y, W / 2, 400) < 140) { holding = true; TK.audio.sfx.chargeStart(); } },
       move() { },
