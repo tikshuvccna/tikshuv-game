@@ -5,9 +5,9 @@
   const $ = (id) => document.getElementById(id);
   const cv = $('c'), ctx = cv.getContext('2d');
   const FEET = world.FEET, clamp = TK.clamp;
-  const MG_IDS = { square: 'route', train: 'cable', mall: 'phish', hospital: 'firewall', ai: 'ai', core: 'core' };
+  const MG_IDS = { square: 'route', train: 'network', mall: 'phish', hospital: 'firewall', ai: 'ai', core: 'quiz' };
   const ICONS = ['', '📡', '🔌', '🛡️', '🧱', '🤖', '⚡'];
-  const SAVE_KEY = 'netopolis-save-v1';
+  const SAVE_KEY = 'netopolis-save-v2';
 
   const S = {
     scene: 'title', t: 0, k: 1,
@@ -35,7 +35,7 @@
 
   /* ---------- שמירה ---------- */
   function save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ name: S.name, look: S.look, idx: S.idx, stars: S.stars, finished: S.finished, facts: hot.map((h) => h.found) })); } catch (e) { }
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ name: S.name, look: S.look, solved: world.solved.slice(), stars: S.stars, finished: S.finished, profile: TK.profile || null, facts: hot.map((h) => h.found) })); } catch (e) { }
   }
   function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
   function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
@@ -153,7 +153,7 @@
   /* ---------- HUD ---------- */
   function buildHud() {
     const p = $('pips'); p.innerHTML = '';
-    for (let i = 1; i < ZONES.length; i++) { const d = el('div', 'pip', ICONS[i]); d.id = 'pip' + i; d.title = ZONES[i].name; p.appendChild(d); }
+    for (let i = 1; i < ZONES.length; i++) { const d = el('div', 'pip', ICONS[i]); d.id = 'pip' + i; d.title = ZONES[i].name; d.onclick = () => { if (S.busy || dlg || S.scene !== 'world') return; A.init(); A.sfx.whoosh(); S.px = ZONES[i].start + 160; S.dir = 1; S.dwell = 0; world.fx.burst(S.px, FEET - 90, '#22e5ff', 26, 240); }; p.appendChild(d); }
   }
   function updateHud() {
     for (let i = 1; i < ZONES.length; i++) { const e = $('pip' + i); if (e) e.classList.toggle('done', !!world.solved[i]); }
@@ -233,7 +233,7 @@
     if (!S.name) { S.name = S.look.gender === 'f' ? 'מתקשבת' : 'מתקשב'; }
     A.init(); A.sfx.win();
     $('creator').classList.add('hidden');
-    S.idx = 1; S.stars = ZONES.map(() => 0); S.arrived = ZONES.map(() => false); S.finished = false; S.free = false; buildHot(); foundCount = 0;
+    S.stars = ZONES.map(() => 0); TK.profile = null; S.dwell = 0; S.arrived = ZONES.map(() => false); S.finished = false; S.free = false; buildHot(); foundCount = 0;
     world.lit.forEach((v, i) => { world.lit[i] = i === 0 ? 1 : 0; world.target[i] = i === 0 ? 1 : 0; world.solved[i] = false; });
     world.doorOpen = 0;
     save();
@@ -264,7 +264,8 @@
   /* =====================================================================
      העולם: הליכה, תחנות, תיקון
      ===================================================================== */
-  function maxX() { if (S.free || S.idx >= ZONES.length) return world.END - 260; return ZONES[S.idx].station; }
+  const solvedCount = () => { let n = 0; for (let i = 1; i < ZONES.length - 1; i++) if (world.solved[i]) n++; return n; };
+  function maxX() { return world.END - 260; }
   function updateWorld(dt) {
     let ax = 0;
     if (keys.ArrowRight || keys.KeyD) ax += 1;
@@ -295,17 +296,27 @@
       if (a.t > 3.7) { S.attempt = null; a.res(); }
     }
     if (S.scene !== 'world') return;
-    if (!S.busy && !dlg) for (const h of hot) if (!h.found && h.z <= S.idx && Math.abs(S.px - h.x) < 55) { showFact(h); break; }
-    // הגעה לאזור / הגעה לתחנה
-    if (!S.busy && !S.free && S.idx < ZONES.length) {
-      const z = ZONES[S.idx];
-      if (!S.arrived[z.i] && S.px > z.start + 140) { S.arrived[z.i] = true; arrive(z); }
-      else if (S.px >= z.station - 3) runStation(z);
+    if (!S.busy && !dlg) for (const h of hot) if (!h.found && Math.abs(S.px - h.x) < 55) { showFact(h); break; }
+    // הגעה לאזור / עמידה על עיגול המשימה
+    if (!S.busy) {
+      let onStation = false;
+      for (let i = 1; i < ZONES.length; i++) {
+        const z = ZONES[i];
+        if (!S.arrived[i] && S.px > z.start + 140) { S.arrived[i] = true; arrive(z, i === 1); return; }
+        if (!world.solved[i] && Math.abs(S.px - z.station) < 42) { onStation = true; S.dwell += S.walk > 0.4 ? dt * 0.5 : dt; if (S.dwell > 0.55) { S.dwell = 0; stationTry(z); return; } }
+      }
+      if (!onStation) S.dwell = 0;
     }
   }
 
-  async function arrive(z) {
+  function stationTry(z) {
+    if (z.id === 'core' && solvedCount() < 3) { S.busy = true; say(TK.CONTENT.coreLocked).then(() => { S.px = z.station - 220; S.busy = false; }); return; }
+    runStation(z);
+  }
+
+  async function arrive(z, first) {
     S.busy = true; showBanner(z); await wait(1900); await say(TK.CONTENT.zones[z.id].arrive); S.busy = false;
+    toast('כדי להתחיל את המשימה: עמדו על העיגול הזוהר', 4800);
   }
   function doAttempt(cfg) { return new Promise((res) => { S.attempt = { t: 0, label: cfg.label, err: cfg.err, failed: false, res }; }); }
 
@@ -322,10 +333,10 @@
     await repair(z);
     if (C.win && C.win.length) await say(C.win);
     if (C.card) await showCard(C.card);
-    S.idx = z.i + 1; save(); updateHud();
+    save(); updateHud();
     if (z.id === 'core') { await finale(); return; }
     S.busy = false;
-    toast('האזור תוקן! ממשיכים ימינה ←', 3600);
+    toast(solvedCount() >= 5 ? 'כל האזורים תוקנו! הליבה מחכה בקצה הימני של העיר ←' : 'האזור תוקן! בחרו לאן להמשיך: אפשר גם ללחוץ על האייקונים למעלה', 4200);
   }
 
   async function repair(z) {
@@ -429,8 +440,8 @@
     return new Promise((res) => {
       A.sfx.win(); drawCert(); $('toast').classList.remove('on'); $('hud').style.opacity = '0';
       $('cert').classList.remove('hidden');
-      const cta = $('btnCta');
-      if (CFG.CTA_URL) { cta.href = CFG.CTA_URL; cta.textContent = CFG.CTA_BUTTON || 'לפרטים'; cta.classList.remove('hidden'); }
+      const cta = $('btnCta'); cta.textContent = CFG.CTA_BUTTON || 'אני רוצה להירשם!'; cta.classList.remove('hidden');
+      if (CFG.CTA_URL) cta.href = CFG.CTA_URL; else cta.onclick = (e) => { e.preventDefault(); toast(CFG.CTA_NOTE || 'פנו למורה או ליועצת לפרטים על ההרשמה', 6000); $('toast').style.zIndex = 60; };
       $('btnDownload').onclick = () => { const a = document.createElement('a'); a.download = 'netopolis-certificate.png'; a.href = $('certCanvas').toDataURL('image/png'); a.click(); };
       $('btnExplore').onclick = () => { $('cert').classList.add('hidden'); $('hud').style.opacity = ''; S.free = true; S.busy = false; S.px = ZONES[6].station + 200; S.cam = clamp(S.px - W * 0.38, 0, world.END - W); res(); };
       $('btnAgain').onclick = () => { clearSave(); location.reload(); };
@@ -452,8 +463,9 @@
     T('תעודת הוקרה', CW / 2, 220, { size: 84, weight: 900, color: '#fff', glow: '#7c4dff', glowSize: 30 });
     T(TK.fmt('מוענקת בזאת ל[[תלמיד|תלמידה]]', S), CW / 2, 300, { size: 28, weight: 500, color: '#cfe0ff' });
     T(S.name, CW / 2 + 130, 380, { size: 88, weight: 900, color: '#ffe07a', glow: '#ffc933', glowSize: 24 });
-    T('בדרגת: ' + rankText(), CW / 2 + 130, 458, { size: 38, weight: 800, color: '#7cf5c8', glow: '#39ff88', glowSize: 14 });
-    TK.para(g, TK.fmt('על שה[[חזיר|חזירה]] את נטופוליס לחיים: [[חיבר|חיברה]] רשתות, [[חיווט|חיווטה]] כבלים, [[הגן|הגנה]] מפני הונאות ותקיפות, ו[[אימן|אימנה]] בינה מלאכותית.', S), CW / 2 + 110, 520, 640, { size: 26, weight: 500, color: '#e6ecff', lh: 38 });
+    T('בדרגת: ' + rankText(), CW / 2 + 110, 442, { size: 38, weight: 800, color: '#7cf5c8', glow: '#39ff88', glowSize: 14 });
+    { const pr = TK.profile && TK.CONTENT.profiles[TK.profile]; if (pr) T('הפרופיל שלי: ' + pr.icon + ' ' + pr.title, CW / 2 + 110, 490, { size: 30, weight: 800, color: '#ffe07a' }); }
+    TK.para(g, TK.fmt('על שה[[חזיר|חזירה]] את נטופוליס לחיים: [[חיבר|חיברה]] רשתות, [[חיווט|חיווטה]] כבלים, [[הגן|הגנה]] מפני הונאות ותקיפות, ו[[אימן|אימנה]] בינה מלאכותית.', S), CW / 2 + 110, 545, 640, { size: 24, weight: 500, color: '#e6ecff', lh: 38 });
     // תגי אזורים
     const nm = ['רשתות', 'כבלים', 'אבטחה', 'חומת אש', 'AI', 'ליבה'];
     for (let i = 0; i < 6; i++) {
@@ -462,6 +474,7 @@
       T(ICONS[i + 1], x, y + 2, { size: 30 }); T(nm[i], x, y + 52, { size: 15, weight: 600, color: '#bfffd8' });
     }
     T('⭐ ' + totalStars() + ' / ' + ((ZONES.length - 1) * 3), 1040, 130, { size: 30, weight: 800, color: '#ffc933', glow: '#ffc933', dir: 'ltr' });
+    if (CFG.CTA_TEXT) T(CFG.CTA_TEXT, CW / 2, 752, { size: 22, weight: 800, color: '#22e5ff', glow: '#22e5ff' });
     T('🔎 ' + foundCount + ' / ' + hot.length, 1040, 168, { size: 20, weight: 700, color: '#ffe07a', dir: 'ltr' });
     T(new Date().toLocaleDateString('he-IL'), 1040, 205, { size: 20, color: '#8fa0d0', dir: 'ltr' });
     TK.drawCharacter(g, 190, 700, S.look, { t: 1.2, scale: 2.1, mood: 'happy', wave: true, dir: 1, hero: true });
@@ -544,7 +557,7 @@
   function drawWalkHint() {
     if (S.scene !== 'world' || S.busy || dlg || S.hintT < 5 || S.px >= maxX() - 150) return;
     const a = 0.4 + 0.4 * Math.sin(S.t * 4);
-    ctx.save(); ctx.globalAlpha = a; TK.txt(ctx, 'ממשיכים ימינה  ➜', W - 130, H / 2, { size: 26, weight: 800, color: '#22e5ff', glow: '#22e5ff' }); ctx.restore();
+    ctx.save(); ctx.globalAlpha = a; TK.txt(ctx, 'ממשיכים לחקור  ➜', W - 130, H / 2, { size: 26, weight: 800, color: '#22e5ff', glow: '#22e5ff' }); ctx.restore();
   }
 
   /* ---------- לולאה ---------- */
@@ -599,16 +612,15 @@
     requestAnimationFrame(frame);
   }
   function continueGame(sv) {
-    S.name = sv.name; S.look = sv.look; S.idx = sv.idx; S.stars = sv.stars || ZONES.map(() => 0); S.finished = !!sv.finished;
+    S.name = sv.name; S.look = sv.look; S.stars = sv.stars || ZONES.map(() => 0); S.finished = !!sv.finished; TK.profile = sv.profile || null;
     buildHud(); buildHot(); if (sv.facts) sv.facts.forEach((f, i) => { if (hot[i]) hot[i].found = !!f; }); foundCount = hot.filter((h) => h.found).length;
-    for (let i = 1; i < ZONES.length; i++) { const d = i < S.idx; world.solved[i] = d; world.lit[i] = world.target[i] = d ? 1 : 0; S.arrived[i] = d; }
-    S.free = S.idx >= ZONES.length;
-    const z = ZONES[Math.min(S.idx, ZONES.length - 1)];
-    S.px = S.free ? ZONES[6].station + 200 : z.start + 100; S.cam = clamp(S.px - W * 0.38, 0, world.END - W);
+    for (let i = 1; i < ZONES.length; i++) { const d = !!(sv.solved && sv.solved[i]); world.solved[i] = d; world.lit[i] = world.target[i] = d ? 1 : 0; S.arrived[i] = d; }
+    S.free = S.finished;
+    S.px = S.free ? ZONES[6].station + 200 : ZONES[1].start + 100; S.cam = clamp(S.px - W * 0.38, 0, world.END - W);
     S.bit.on = true; S.bit.x = S.px - 70; S.bit.y = FEET - 215; S.reveal = 1; S.scene = 'world'; S.busy = false; S.mood = 'neutral';
     world.doorOpen = S.free ? 1 : 0;
     $('title').classList.add('hidden'); $('hud').classList.remove('hidden'); updateHud();
-    toast('ברוכים השבים! ממשיכים ימינה ←', 3200);
+    toast('ברוכים השבים! בחרו לאן ללכת, או לחצו על האייקונים למעלה', 3800);
   }
 
   TK.game = { S, world, runStation, say, finale, showCertificate, playMinigame, save };

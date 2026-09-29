@@ -6,8 +6,9 @@ TK.CONFIG = {
   SCHOOL_SUB: 'רשתות תקשורת ואבטחת מידע',
   // הודעה בסוף (קריאה להצטרפות). אפשר להוסיף קישור להרשמה / יום פתוח
   CTA_TEXT: 'מחכים לך במגמת תקשוב!',
+  CTA_NOTE: 'פנו למורה או ליועצת בבית הספר לפרטים על ההרשמה',  // מוצג אם אין CTA_URL
   CTA_URL: '',            // למשל: 'https://example.com/open-day'
-  CTA_BUTTON: 'לפרטים על המגמה',
+  CTA_BUTTON: 'אני רוצה להירשם!',
   // מיתוג אופציונלי: אם תשים קבצים בנתיבים האלה הם יופיעו אוטומטית (ראו assets/PROMPTS.md)
   LOGO: 'assets/img/logo.png',
   INTRO_VIDEO: 'assets/video/intro.mp4',

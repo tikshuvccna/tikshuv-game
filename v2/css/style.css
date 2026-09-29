@@ -118,3 +118,8 @@ h2 { font-size: 40px; margin: 4px 0 18px; font-weight: 700; color: #ffd3fb; text
 #starsCount .fc { color: #ffe07a; }
 
 #cText { white-space: pre-line; }
+
+.pip { pointer-events: auto; cursor: pointer; }
+.pip:hover { transform: scale(1.15); }
+#btnCta { animation: ctapulse 1.6s infinite; }
+@keyframes ctapulse { 50% { box-shadow: 0 0 44px rgba(34, 229, 255, .9); } }
