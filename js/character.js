@@ -42,7 +42,7 @@ window.TK = window.TK || {};
     const R = 31;
     const cap = () => {
       ctx.beginPath(); ctx.arc(0, 0, R + 2.5, Math.PI, 0); ctx.lineTo(R + 1, 8);
-      ctx.lineTo(R * 0.7, -7); ctx.lineTo(R * 0.35, 0); ctx.lineTo(0, -11); ctx.lineTo(-R * 0.32, -1); ctx.lineTo(-R * 0.66, -9); ctx.lineTo(-R - 1, 8);
+      ctx.lineTo(R * 0.7, -17); ctx.lineTo(R * 0.36, -12); ctx.lineTo(0, -22); ctx.lineTo(-R * 0.34, -13); ctx.lineTo(-R * 0.66, -19); ctx.lineTo(-R - 1, 8);
       ctx.closePath(); ctx.fill();
     };
     ctx.fillStyle = c;
@@ -87,6 +87,18 @@ window.TK = window.TK || {};
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.ellipse(0, 0, 32 - bob, 8, 0, 0, 6.283); ctx.fill();
 
     const hy = -122 - bob;
+    // ניצחון: הילה וגלימת מתקשב
+    if (st.hero) {
+      const ag = ctx.createRadialGradient(0, -80, 10, 0, -80, 120);
+      ag.addColorStop(0, 'rgba(255,224,122,.38)'); ag.addColorStop(1, 'rgba(255,224,122,0)');
+      ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, -80, 120, 0, 6.283); ctx.fill();
+      const cw = Math.sin(t * 3) * 3 + walk * Math.sin(ph) * 5;
+      const cg = ctx.createLinearGradient(0, -96, 0, -8); cg.addColorStop(0, '#7c4dff'); cg.addColorStop(1, '#22e5ff');
+      ctx.fillStyle = cg; ctx.beginPath(); ctx.moveTo(-22, -96 - bob); ctx.lineTo(22, -96 - bob);
+      ctx.quadraticCurveTo(40 + cw * 2, -56, 38 + cw * 3 - dir * walk * 10, -12); ctx.lineTo(-38 - cw * 3 - dir * walk * 10, -12);
+      ctx.quadraticCurveTo(-40 - cw * 2, -56, -22, -96 - bob); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+    }
     // תיק גב (מאחור)
     if (acc.backpack) {
       ctx.fillStyle = '#2b3556'; rr(ctx, -32, -100 - bob, 64, 52, 15); ctx.fill();
@@ -119,6 +131,12 @@ window.TK = window.TK || {};
     ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 8, 1.8, 0, 6.283); ctx.fill(); ctx.restore();
     // שרוכי ברדס
     ctx.strokeStyle = topL; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-6, -98 - bob); ctx.lineTo(-7, -84 - bob); ctx.moveTo(6, -98 - bob); ctx.lineTo(7, -84 - bob); ctx.stroke();
+    // סיכת כוכב זהב (ניצחון)
+    if (st.hero) {
+      ctx.save(); ctx.translate(-14, -70 - bob); ctx.fillStyle = '#ffd34d'; ctx.shadowColor = '#ffc933'; ctx.shadowBlur = 10; ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 4 : 9; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    }
     // רצועות תיק
     if (acc.backpack) { ctx.strokeStyle = '#1a2038'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-14, -100 - bob); ctx.lineTo(-15, -52 - bob); ctx.moveTo(14, -100 - bob); ctx.lineTo(15, -52 - bob); ctx.stroke(); }
 
@@ -159,8 +177,8 @@ window.TK = window.TK || {};
     }
     // גבות
     ctx.lineWidth = 2.4; ctx.strokeStyle = TK.mix(hc, '#000', 0.35);
-    const wr = mood === 'worried' ? 4 : 0;
-    for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(s * ex + ox - s * 6, -9 - wr); ctx.lineTo(s * ex + ox + s * 6, -8 + wr * 0.3); ctx.stroke(); }
+    const wr = mood === 'worried' ? 3.5 : 0;
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(s * ex + ox - s * 6, -8 - wr); ctx.lineTo(s * ex + ox + s * 6, -7 + wr * 0.3); ctx.stroke(); }
     // פה
     ctx.strokeStyle = '#7a2a3a'; ctx.lineWidth = 2.4; ctx.fillStyle = '#7a2a3a';
     if (mood === 'happy') { ctx.beginPath(); ctx.moveTo(-8 + ox, 14); ctx.quadraticCurveTo(ox, 27, 8 + ox, 14); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#ff7a8a'; ctx.beginPath(); ctx.ellipse(ox, 20, 4, 2.4, 0, 0, 6.283); ctx.fill(); }
@@ -171,6 +189,14 @@ window.TK = window.TK || {};
     // שיער קדמי
     hairFront(ctx, style, hc, hcd, { dir, t, walk, cap: acc.cap });
 
+    // סרט/פפיון לבנות
+    if (f && style !== 'ponytail' && style !== 'bun') {
+      ctx.fillStyle = '#ff5cc8'; ctx.strokeStyle = '#c23a97'; ctx.lineWidth = 1.5;
+      const bx = -dir * 22, by = -25;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - 11, by - 7); ctx.lineTo(bx - 11, by + 7); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 11, by - 7); ctx.lineTo(bx + 11, by + 7); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx, by, 3.6, 0, 6.283); ctx.fillStyle = '#ffd3f0'; ctx.fill();
+    }
     // משקפי AR
     if (acc.glasses) {
       ctx.lineWidth = 2.6; ctx.strokeStyle = '#141a34'; ctx.fillStyle = TK.rgba('#22e5ff', 0.28);

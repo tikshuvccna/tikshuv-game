@@ -20,6 +20,8 @@
     cine: null, stepT: 0, hintT: 0
   };
   const ptr = { x: 0, y: 0, down: false };
+  const hot = [];   // נקודות "הידעת?"
+  let foundCount = 0;
   const keys = {};
   const mgFx = TK.makeFx();
   let dlg = null;
@@ -33,7 +35,7 @@
 
   /* ---------- שמירה ---------- */
   function save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ name: S.name, look: S.look, idx: S.idx, stars: S.stars, finished: S.finished })); } catch (e) { }
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ name: S.name, look: S.look, idx: S.idx, stars: S.stars, finished: S.finished, facts: hot.map((h) => h.found) })); } catch (e) { }
   }
   function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
   function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
@@ -119,6 +121,34 @@
     });
   }
 
+  /* ---------- באנר אזור ו"הידעת?" ---------- */
+  function showBanner(z) {
+    const b = $('banner'); $('bnKick').textContent = 'אזור ' + z.i + ' מתוך ' + (ZONES.length - 1); $('bnTitle').textContent = z.name;
+    b.classList.remove('show'); void b.offsetWidth; b.classList.add('show'); A.sfx.whoosh();
+  }
+  function showFact(h) {
+    h.found = true; foundCount++; A.sfx.collect(); world.fx.burst(h.x, FEET - 260, '#ffc933', 24, 220); world.fx.ring(h.x, FEET - 260, '#ffc933', 90, 0.8, 3);
+    $('factText').textContent = h.t; $('fact').classList.remove('hidden');
+    clearTimeout(showFact.h); showFact.h = setTimeout(() => $('fact').classList.add('hidden'), 8000);
+    $('fact').onclick = () => $('fact').classList.add('hidden');
+    updateHud();
+  }
+  function drawHot() {
+    ctx.save(); ctx.translate(-S.cam, 0);
+    hot.forEach((h) => {
+      if (h.x < S.cam - 60 || h.x > S.cam + W + 60) return;
+      const y = FEET - 262 + Math.sin(S.t * 2 + h.ph) * 7, c = h.found ? '#5a668c' : '#ffc933';
+      ctx.save(); ctx.translate(h.x, y);
+      ctx.globalAlpha = h.found ? 0.5 : 1; ctx.shadowColor = c; ctx.shadowBlur = h.found ? 0 : 16;
+      ctx.fillStyle = 'rgba(30,20,0,.75)'; ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i + Math.PI / 6; ctx.lineTo(Math.cos(a) * 20, Math.sin(a) * 20); } ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+      TK.txt(ctx, h.found ? '✓' : '?', 0, 1, { size: 22, weight: 900, color: c });
+      if (!h.found) { const k = (S.t * 0.8 + h.ph) % 1; ctx.strokeStyle = 'rgba(255,201,51,' + (1 - k) * 0.6 + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 20 + k * 22, 0, 6.283); ctx.stroke(); }
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
   /* ---------- HUD ---------- */
   function buildHud() {
     const p = $('pips'); p.innerHTML = '';
@@ -126,7 +156,7 @@
   }
   function updateHud() {
     for (let i = 1; i < ZONES.length; i++) { const e = $('pip' + i); if (e) e.classList.toggle('done', !!world.solved[i]); }
-    $('starsCount').textContent = '⭐ ' + totalStars();
+    $('starsCount').innerHTML = '<span>⭐ ' + totalStars() + '</span><span class="fc">🔎 ' + foundCount + '/' + hot.length + '</span>';
     const x = S.cine ? S.cam + W / 2 : S.px;
     $('zoneName').textContent = world.zoneAt(x).name;
   }
@@ -155,7 +185,7 @@
     p.appendChild(el('h3', '', 'צור/י את הדמות שלך'));
     const r1 = el('div', 'crow'); r1.appendChild(el('div', 'clabel', 'מי נכנס/ת לעולם?'));
     const g = el('div', 'chips');
-    [['m', '🧑 בן'], ['f', '👧 בת']].forEach((o) => { const c = el('div', 'chip', o[1]); c.dataset.g = o[0]; c.onclick = () => { S.look.gender = o[0]; pulse(); A.sfx.click(); renderDyn(); }; g.appendChild(c); });
+    [['m', '🧑 בן'], ['f', '👧 בת']].forEach((o) => { const c = el('div', 'chip', o[1]); c.dataset.g = o[0]; c.onclick = () => { if (S.look.gender !== o[0]) { const d = TK.defaultLook(o[0]); S.look.gender = o[0]; S.look.hairStyle = d.hairStyle; S.look.hair = d.hair; } pulse(); A.sfx.click(); renderDyn(); }; g.appendChild(c); });
     r1.appendChild(g); p.appendChild(r1);
     const r2 = el('div', 'crow'); r2.appendChild(el('div', 'clabel', 'שם או כינוי (לא שם מלא)'));
     const inp = el('input'); inp.id = 'nameIn'; inp.maxLength = 12; inp.placeholder = 'למשל: נועם'; inp.value = S.name; inp.autocomplete = 'off';
@@ -202,7 +232,7 @@
     if (!S.name) { S.name = S.look.gender === 'f' ? 'מתקשבת' : 'מתקשב'; }
     A.init(); A.sfx.win();
     $('creator').classList.add('hidden');
-    S.idx = 1; S.stars = ZONES.map(() => 0); S.arrived = ZONES.map(() => false); S.finished = false; S.free = false;
+    S.idx = 1; S.stars = ZONES.map(() => 0); S.arrived = ZONES.map(() => false); S.finished = false; S.free = false; buildHot(); foundCount = 0;
     world.lit.forEach((v, i) => { world.lit[i] = i === 0 ? 1 : 0; world.target[i] = i === 0 ? 1 : 0; world.solved[i] = false; });
     world.doorOpen = 0;
     save();
@@ -264,6 +294,7 @@
       if (a.t > 3.7) { S.attempt = null; a.res(); }
     }
     if (S.scene !== 'world') return;
+    if (!S.busy && !dlg) for (const h of hot) if (!h.found && h.z <= S.idx && Math.abs(S.px - h.x) < 55) { showFact(h); break; }
     // הגעה לאזור / הגעה לתחנה
     if (!S.busy && !S.free && S.idx < ZONES.length) {
       const z = ZONES[S.idx];
@@ -273,13 +304,13 @@
   }
 
   async function arrive(z) {
-    S.busy = true; await say(TK.CONTENT.zones[z.id].arrive); S.busy = false;
+    S.busy = true; showBanner(z); await wait(1900); await say(TK.CONTENT.zones[z.id].arrive); S.busy = false;
   }
   function doAttempt(cfg) { return new Promise((res) => { S.attempt = { t: 0, label: cfg.label, err: cfg.err, failed: false, res }; }); }
 
   async function runStation(z) {
     if (S.busy) return;
-    S.busy = true;
+    S.busy = true; $('fact').classList.add('hidden');
     const C = TK.CONTENT.zones[z.id];
     if (!S.arrived[z.i]) S.arrived[z.i] = true;
     await say(C.pre);
@@ -307,6 +338,7 @@
   /* ---------- מיני-משחקים ---------- */
   function playMinigame(z) {
     return new Promise((res) => {
+      $('fact').classList.add('hidden');
       let ended = false;
       const api = {
         bit: (text, ms) => { S.bubble = { t: text, ms: ms || 4000, age: 0 }; },
@@ -428,8 +460,9 @@
       T(ICONS[i + 1], x, y + 2, { size: 30 }); T(nm[i], x, y + 52, { size: 15, weight: 600, color: '#bfffd8' });
     }
     T('⭐ ' + totalStars() + ' / ' + ((ZONES.length - 1) * 3), 1040, 130, { size: 30, weight: 800, color: '#ffc933', glow: '#ffc933', dir: 'ltr' });
-    T(new Date().toLocaleDateString('he-IL'), 1040, 176, { size: 20, color: '#8fa0d0', dir: 'ltr' });
-    TK.drawCharacter(g, 190, 700, S.look, { t: 1.2, scale: 2.1, mood: 'happy', wave: true, dir: 1 });
+    T('🔎 ' + foundCount + ' / ' + hot.length, 1040, 168, { size: 20, weight: 700, color: '#ffe07a', dir: 'ltr' });
+    T(new Date().toLocaleDateString('he-IL'), 1040, 205, { size: 20, color: '#8fa0d0', dir: 'ltr' });
+    TK.drawCharacter(g, 190, 700, S.look, { t: 1.2, scale: 2.1, mood: 'happy', wave: true, dir: 1, hero: true });
     TK.drawBit(g, 1100, 330, 2, 'happy', 1.25);
     T('ביט, עוזר ה-AI', 1100, 410, { size: 17, color: '#9fb0d8' });
     const lg = CFG.LOGO && (logoImg || (logoImg = (() => { const i = new Image(); i.onload = drawCert; i.onerror = () => { }; i.src = CFG.LOGO; return i; })()));
@@ -477,11 +510,12 @@
     if (sh) ctx.translate((Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh * 0.6);
     world.drawBack(ctx, S.cam, S.t, S);
     if (withChar) {
-      TK.drawCharacter(ctx, S.px - S.cam, FEET, S.look, { t: S.t, walk: S.walk, dir: S.dir, scale: 1.12, mood: S.mood, wave: S.wave > 0, glitch: S.glitch, reveal: S.reveal });
+      TK.drawCharacter(ctx, S.px - S.cam, FEET, S.look, { t: S.t, walk: S.walk, dir: S.dir, scale: 1.12, mood: S.mood, wave: S.wave > 0, glitch: S.glitch, reveal: S.reveal, hero: S.finished });
       if (S.bit.on) TK.drawBit(ctx, S.bit.x - S.cam, S.bit.y, S.t, S.bit.mood, 0.95);
       drawAttempt();
     }
     world.drawFront(ctx, S.cam, S.t, S);
+    if (withChar && S.scene !== 'intro') drawHot();
     ctx.restore();
     // אפקטים של "עיר תקולה"
     if (withChar) {
@@ -548,8 +582,12 @@
   }
 
   /* ---------- אתחול ---------- */
+  function buildHot() {
+    hot.length = 0;
+    ZONES.forEach((z) => { const f = TK.CONTENT.facts[z.id]; if (f) f.forEach((o) => hot.push({ x: z.start + o.dx, z: z.i, t: o.t, found: false, ph: Math.random() * 6 })); });
+  }
   function init() {
-    world.init(); resize();
+    buildHot(); world.init(); resize();
     $('tSchool').textContent = (CFG.SCHOOL || '') + (CFG.SCHOOL_SUB ? ' · ' + CFG.SCHOOL_SUB : '');
     if (CFG.LOGO) { const l = $('logo'); l.onload = () => l.classList.remove('hidden'); l.src = CFG.LOGO; }
     const sv = loadSave();
@@ -560,7 +598,7 @@
   }
   function continueGame(sv) {
     S.name = sv.name; S.look = sv.look; S.idx = sv.idx; S.stars = sv.stars || ZONES.map(() => 0); S.finished = !!sv.finished;
-    buildHud();
+    buildHud(); buildHot(); if (sv.facts) sv.facts.forEach((f, i) => { if (hot[i]) hot[i].found = !!f; }); foundCount = hot.filter((h) => h.found).length;
     for (let i = 1; i < ZONES.length; i++) { const d = i < S.idx; world.solved[i] = d; world.lit[i] = world.target[i] = d ? 1 : 0; S.arrived[i] = d; }
     S.free = S.idx >= ZONES.length;
     const z = ZONES[Math.min(S.idx, ZONES.length - 1)];
