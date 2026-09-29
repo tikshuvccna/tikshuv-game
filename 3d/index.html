@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070b17">
+<title>נטופוליס 3D: העיר שאיבדה חיבור</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="rotate"><div><div class="ph">📱</div>סובבו את המכשיר למצב אופקי<br><small>המשחק מיועד למסך רחב</small></div></div>
+
+<canvas id="three"></canvas>
+<div id="loading"><div>טוען את העיר...</div></div>
+<div id="game">
+  <canvas id="c"></canvas>
+  <div id="ui">
+    <div id="fade"></div>
+    <div id="attempt" class="hidden"><div id="atLabel"></div><div class="atbar"><div id="atBar"></div></div><div id="atPct" dir="ltr">0%</div></div>
+    <div id="walkHint" class="hidden">בחרו לאן ללכת: הכניסות הזוהרות ליד כל מבנה</div>
+    <div id="stick" class="hidden"><div id="stickKnob"></div></div>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="zoneName"></div>
+      <div id="pips"></div>
+      <div id="starsCount">⭐ 0</div>
+      <button id="btnMute" class="iconbtn" aria-label="שמע">🔊</button>
+    </div>
+
+    <!-- מסך פתיחה -->
+    <div id="title" class="screen">
+      <div class="tbox">
+        <img id="logo" alt="" class="hidden">
+        <div class="kicker" id="tSchool"></div>
+        <h1>נטופוליס</h1>
+        <h2>העיר שאיבדה חיבור</h2>
+        <p class="lead">כל הודעה בוואטסאפ, כל משחק אונליין וכל תשלום בטלפון עובדים בזכות תקשוב. בואו לראות מה קורה כשהוא נופל, ולנסות לתקן בעצמכם.<br><b>לא צריך לדעת כלום מראש.</b></p>
+        <div class="row">
+          <button id="btnStart" class="btn primary big">התחל</button>
+          <button id="btnContinue" class="btn hidden">המשך משחק שמור</button>
+        </div>
+        <div class="tiny">מומלץ עם אוזניות · כ-10 דקות · בלי ידע קודם</div>
+      </div>
+    </div>
+
+    <!-- יצירת דמות -->
+    <div id="creator" class="screen hidden">
+      <div id="cpanel"></div>
+    </div>
+
+    <!-- דיאלוג -->
+    <div id="dialog" class="hidden">
+      <canvas id="portrait" width="112" height="112"></canvas>
+      <div class="dbody">
+        <div id="dname"></div>
+        <div id="dtext"></div>
+      </div>
+      <div id="dnext">▼</div>
+    </div>
+
+    <!-- כרטיס מושג -->
+    <div id="card" class="hidden">
+      <div class="cardbox">
+        <div class="cbadge" id="cardBadge">מושג חדש נלמד!</div>
+        <div id="cIcon"></div>
+        <h3 id="cTitle"></h3>
+        <p id="cText"></p>
+        <div id="cLab"></div>
+        <button id="cardOk" class="btn primary">קיבלתי, ממשיכים</button>
+      </div>
+    </div>
+
+    <div id="banner"><div id="bnKick"></div><div id="bnTitle"></div></div>
+    <div id="fact" class="hidden"><div class="fk">🔎 הידעת?</div><div id="factText"></div></div>
+    <input id="pw" type="text" autocomplete="off" spellcheck="false" dir="ltr" placeholder="Type a password..." style="display:none">
+    <div id="toast"></div>
+
+    <!-- תעודה -->
+    <div id="cert" class="screen hidden">
+      <div class="certbox">
+        <canvas id="certCanvas" width="1200" height="800"></canvas>
+        <div class="row">
+          <a id="btnCta" class="btn primary big hidden" target="_blank" rel="noopener"></a>
+          <button id="btnDownload" class="btn">הורד תעודה</button>
+          <button id="btnExplore" class="btn">המשך לחקור את העיר</button>
+          <button id="btnAgain" class="btn">שחק שוב</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/content.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/character.js"></script>
+<script src="js/minigames.js"></script>
+<script src="game3d.js"></script>
+</body>
+</html>
