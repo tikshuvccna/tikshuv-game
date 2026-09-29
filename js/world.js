@@ -562,9 +562,9 @@ window.TK = window.TK || {};
       for (let i = 0; i < 5; i++) { const a = -0.5 + i * 0.25 + Math.sin(t + i) * 0.03; ctx.beginPath(); ctx.moveTo(dx, G - 160); ctx.lineTo(dx + Math.sin(a) * 700 - 30, G - 160 - Math.cos(a) * 700); ctx.lineTo(dx + Math.sin(a) * 700 + 30, G - 160 - Math.cos(a) * 700); ctx.fill(); }
       ctx.restore();
     }
-    ctx.fillStyle = mix('#1a2244', '#22e5ff', open * 0.5); ctx.fillRect(dx - 110 + 6 - open * 100, G - 314, 104, 308); ctx.fillRect(dx + 4 + open * 100, G - 314, 104, 308);
+    ctx.fillStyle = mix('#1a2244', '#22e5ff', open * 0.5); const lw = 104 * (1 - open * 0.9); ctx.fillRect(dx - 104, G - 314, lw, 308); ctx.fillRect(dx + 104 - lw, G - 314, lw, 308);
     ctx.strokeStyle = mix('#3a4262', z.acc, l); ctx.lineWidth = 4; ctx.strokeRect(dx - 110, G - 320, 220, 320);
-    for (const sx of [-1, 1]) { ctx.fillStyle = mix('#28304c', z.acc, l); ctx.fillRect(dx + sx * 40 - 5 + sx * open * 100, G - 190, 10, 60); }
+    for (const sx of [-1, 1]) { ctx.fillStyle = mix('#28304c', z.acc, l); ctx.fillRect(dx + sx * (104 - 104 * (1 - open * 0.9)) - (sx > 0 ? 0 : 0) - 5 + sx * 0, G - 190, 10, 60); }
   };
 
   /* ---------- סימון תחנה ---------- */

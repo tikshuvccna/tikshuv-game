@@ -79,6 +79,7 @@
 
   /* ---------- דיאלוג ---------- */
   const pctx = $('portrait').getContext('2d');
+  $('dialog').addEventListener('pointerdown', (e) => { e.preventDefault(); A.init(); dlgAdvance(); });
   function say(lines) {
     if (!lines || !lines.length) return Promise.resolve();
     lines = lines.map((l) => Object.assign({}, l, { t: TK.fmt(l.t, S) }));
@@ -115,7 +116,7 @@
   /* ---------- כרטיס מושג ---------- */
   function showCard(c) {
     return new Promise((res) => {
-      $('cIcon').textContent = c.icon; $('cTitle').textContent = c.title; $('cText').textContent = c.text; $('cLab').textContent = c.lab;
+      $('cIcon').textContent = c.icon; $('cardBadge').textContent = c.badge || 'מושג חדש נלמד!'; $('cTitle').textContent = c.title; $('cText').textContent = c.text; $('cLab').textContent = c.lab;
       $('card').classList.remove('hidden'); A.sfx.collect();
       $('cardOk').onclick = () => { $('card').classList.add('hidden'); A.sfx.click(); res(); };
     });
@@ -416,6 +417,7 @@
     await say(TK.CONTENT.finale);
     S.wave = 0;
     await playVideo(CFG.FINALE_VIDEO);
+    S.mood = 'neutral'; await showCard(TK.CONTENT.summary);
     // סיור אווירי בעיר שהצלת
     toast('העיר שהצלת ✨', 4000);
     await new Promise((res) => { S.cine = { t: 0, dur: 9500, from: S.cam, to: 0, res }; });
@@ -455,7 +457,7 @@
     // תגי אזורים
     const nm = ['רשתות', 'כבלים', 'אבטחה', 'חומת אש', 'AI', 'ליבה'];
     for (let i = 0; i < 6; i++) {
-      const x = 450 + i * 116, y = 665;
+      const x = 450 + (5 - i) * 116, y = 665;
       g.fillStyle = 'rgba(57,255,136,.14)'; g.strokeStyle = '#39ff88'; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, 34, 0, 6.283); g.fill(); g.stroke();
       T(ICONS[i + 1], x, y + 2, { size: 30 }); T(nm[i], x, y + 52, { size: 15, weight: 600, color: '#bfffd8' });
     }
